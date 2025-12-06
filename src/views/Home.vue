@@ -39,16 +39,20 @@
                     <el-button type="primary" size="small" :icon="SwitchButton" @click="handleLogout">登出</el-button>
                 </el-tooltip>
                 <el-switch v-model="isDarkMode" :active-icon="Moon" :inactive-icon="Sunny" @change="toggleDarkMode"
-                    inline-prompt class="theme-switch" />
+                    inline-prompt class="theme-switch" style="--el-switch-on-color: #409EFF; --el-switch-off-color: #4c4d4f; --el-switch-border-color: #4c4d4f;" />
             </div>
         </div>
 
         <div class="table-operations">
+            <el-button type="danger" :icon="Delete" @click="handleBatchDelete" v-if="selectedRows.length > 0" class="batch-delete-btn">
+                批量删除 ({{ selectedRows.length }})
+            </el-button>
             <el-input v-model="searchQuery" placeholder="搜索域名、域名商或备注..." :prefix-icon="Search" clearable
                 class="search-input" />
         </div>
 
-        <el-table :data="paginatedDomains" border style="width: 100%" class="custom-table">
+        <el-table :data="paginatedDomains" border style="width: 100%" class="custom-table" @selection-change="handleSelectionChange">
+            <el-table-column type="selection" width="55" align="center" />
             <el-table-column type="index" label="序号" width="60" align="center">
                 <template #default="scope">
                     {{ (currentPage - 1) * pageSize + scope.$index + 1 }}
@@ -262,6 +266,65 @@ const handleDelete = async (row: Domain) => {
     } catch (error) {
         if (error !== 'cancel') {
             ElMessage.error('删除失败')
+        }
+    }
+}
+
+// 批量操作状态
+const selectedRows = ref<Domain[]>([])
+
+const handleSelectionChange = (selection: Domain[]) => {
+    selectedRows.value = selection
+}
+
+const handleBatchDelete = async () => {
+    if (selectedRows.value.length === 0) return
+
+    try {
+        await ElMessageBox.confirm(`确定要删除选中的 ${selectedRows.value.length} 个域名吗？`, '批量删除提示', {
+            type: 'warning',
+            confirmButtonText: '确定删除',
+            cancelButtonText: '取消',
+            confirmButtonClass: 'el-button--danger'
+        })
+
+        const loading = ElMessage.info({
+            message: '正在批量删除...',
+            duration: 0
+        })
+
+        let successCount = 0
+        let failCount = 0
+
+        // 并行执行删除操作
+        const deletePromises = selectedRows.value.map(async (row) => {
+            if (row.id) {
+                try {
+                    await deleteDomain(row.id)
+                    successCount++
+                } catch (error) {
+                    console.error(`删除域名 ${row.domain} 失败:`, error)
+                    failCount++
+                }
+            }
+        })
+
+        await Promise.all(deletePromises)
+        loading.close()
+
+        if (failCount === 0) {
+            ElMessage.success(`成功删除 ${successCount} 个域名`)
+        } else {
+            ElMessage.warning(`删除完成: 成功 ${successCount} 个, 失败 ${failCount} 个`)
+        }
+
+        selectedRows.value = [] // 清空选择
+        await loadDomains() // 刷新列表
+
+    } catch (error) {
+        if (error !== 'cancel') {
+            console.error('批量删除出错:', error)
+            ElMessage.error('批量删除操作失败')
         }
     }
 }
@@ -638,12 +701,33 @@ onMounted(() => {
 
 .theme-switch {
     margin-left: 4px;
+    --el-switch-on-color: #2c3e50;
+}
+
+/* 增强白天模式下太阳图标的可见性 */
+:deep(.el-switch__action .el-icon) {
+    color: #ffffff;
+}
+
+:deep(.el-switch .el-icon) {
+    color: #ffffff;
 }
 
 .table-operations {
     margin-bottom: 15px;
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between; /* 改为两端对齐，左边放批量操作，右边放搜索 */
+    align-items: center;
+}
+
+.batch-delete-btn {
+    transition: all 0.3s ease;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
 }
 
 .search-input {

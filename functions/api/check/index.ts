@@ -64,7 +64,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         const notifiedDomains: any[] = []
 
         // 批量检查域名状态
-        const BATCH_SIZE = 5
+        const BATCH_SIZE = 10
         for (let i = 0; i < domains.length; i += BATCH_SIZE) {
             const batch = domains.slice(i, i + BATCH_SIZE)
             console.log(`正在处理第 ${i + 1} 到 ${Math.min(i + BATCH_SIZE, domains.length)} 个域名`)
